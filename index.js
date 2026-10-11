@@ -2,7 +2,7 @@
 //
 // Assisted-by: aider 0.86.2 + gemini/gemini-3.1-pro-preview
 //
-import { join } from 'node:path';
+import { join, extname } from 'node:path';
 import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -85,7 +85,9 @@ async function main() {
 
 async function getCachedFile(url, ttlMs = CACHE_TIMEOUT) {
   const hash = createHash('sha256').update(url).digest('hex')
-  const filePath = join(CACHE_DIR, hash);
+  const parsedUrl = new URL(url);
+  const ext = extname(parsedUrl.pathname);
+  const filePath = join(CACHE_DIR, hash + ext);
 
   try {
     const fileStat = await stat(filePath);
