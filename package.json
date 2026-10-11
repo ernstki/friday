@@ -1,0 +1,10 @@
+{
+  "type": "module",
+  "main": "index.js", 
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "dompurify": "^3.4.16",
+    "js-beautify": "^2.0.3",
+    "jsdom": "^30.1.2"
+  }
+}
