@@ -16,25 +16,33 @@ const { JSDOM } = jsdom;
 import DOMPurify from 'dompurify';
 import beautify from 'js-beautify';
 import nodemailer from 'nodemailer';
+import sharp from 'sharp';
 
-//const url = "https://static.nytimes.com/email-content/NE_sample.html";
 const CACHE_DIR = join(homedir(), '.cache', 'readable-newsletters');
 const CONFIG_FILE = join(homedir(), '.config', 'readable-newsletters.json');
 const CACHE_TIMEOUT = 604800000;  // 7 days
+const MAX_IMAGE_DIMENSION = 500;
 // https://oxal.org/projects/sakura
-const DEFAULT_CSS = 'https://raw.githubusercontent.com/oxalorg/sakura/1eab9fd871abc74ec74d1a6f18ee56148f5a4b8f/css/sakura.css';
+//const DEFAULT_CSS = 'https://raw.githubusercontent.com/oxalorg/sakura/1eab9fd871abc74ec74d1a6f18ee56148f5a4b8f/css/sakura.css';
+const DEFAULT_CSS = 'style.css';
 
 async function main() {
   const config = await loadConfig();
 
-  const { values, positionals } = parseArgs({          
-    options: {             
+  const { values, positionals } = parseArgs({
+    options: {
       browse: { type: 'boolean', short: 'b', default: config.browse || false },
-      email: { type: 'boolean', short: 'e', default: false },
-      'embed-images': { type: 'boolean', short: 'i', default: config.embedImages || false }
-    },                     
+      'send-email': { type: 'boolean', short: 's', default: false },
+      send: { type: 'boolean', default: false },
+      email: { type: 'boolean', default: false },
+      'embed-images': { type: 'boolean', short: 'e', default: config.embedImages || false },
+      embed: { type: 'boolean', default: false },
+    },
     allowPositionals: true
-  });                      
+  });
+
+  const shouldSendEmail = values['send-email'] || values.send || values.email;
+  const shouldEmbed = values['embed-images'] || values.embed;
 
   const url = positionals[0];
   if (!url) {
@@ -54,20 +62,21 @@ async function main() {
 
   let content = article.content;
 
-  if (values['embed-images']) {
-    content = await embedImagesAsDataUris(content, url);
+  if (shouldEmbed) {
+    const maxDim = config.maxImageDimension || MAX_IMAGE_DIMENSION;
+    content = await embedImagesAsDataUris(content, url, maxDim);
   }
 
   const purify = DOMPurify(dom.window);
   const purified = purify.sanitize(content);
-  
+
   let css;
-  if (config.cssPath) {
-    css = await readFile(config.cssPath, 'utf-8');
-  } else {
-    const cssUrl = config.cssUrl || DEFAULT_CSS;
-    const cssBuffer = await getCachedFile(cssUrl);
+  const cssSource = config.css || DEFAULT_CSS;
+  if (cssSource.startsWith('http://') || cssSource.startsWith('https://')) {
+    const cssBuffer = await getCachedFile(cssSource);
     css = cssBuffer.toString('utf-8');
+  } else {
+    css = await readFile(cssSource, 'utf-8');
   }
 
   // 3. Wrap the purified content in a full HTML document with the CSS and CSP injected
@@ -82,7 +91,7 @@ async function main() {
   </head>
   <body>
     <div id="readability-content">
-      ${article.title ? `<h1>${article.title}</h1>` : ''}
+      ${article.title ? `<a href="${url}"><h1>${article.title}</h1></a>` : ''}
       ${purified}
     </div>
   </body>
@@ -90,7 +99,7 @@ async function main() {
 
   const beautified = beautify.html(fullHtml, { indent_size: 2 });
 
-  if (values.email) {
+  if (shouldSendEmail) {
     if (!config.smtp || !config.email || !config.email.to || !config.email.from) {
       console.error("ERROR: Missing 'smtp' or 'email' configuration in config file.");
       process.exit(1);
@@ -113,7 +122,7 @@ async function main() {
     }
   } else if (values.browse) {
     //const proc = spawn('bat', ["-l", "html"],
-    const proc = spawn('browser', [],
+    const proc = spawn('browser', ['--stay-open'],
                        { stdio: ['pipe', 'inherit', 'inherit'] });
     proc.stdin.end(beautified);
   } else {
@@ -121,10 +130,10 @@ async function main() {
   }
 }
 
-async function embedImagesAsDataUris(html, baseUrl) {
+async function embedImagesAsDataUris(html, baseUrl, maxDimension) {
   const dom = new JSDOM(html);
   const images = dom.window.document.querySelectorAll('img');
-  
+
   for (const img of images) {
     const src = img.getAttribute('src');
     if (!src || src.startsWith('data:')) continue;
@@ -132,7 +141,11 @@ async function embedImagesAsDataUris(html, baseUrl) {
     try {
       const imgUrl = new URL(src, baseUrl).href;
       const buffer = await getCachedFile(imgUrl);
-      
+
+      const resizedBuffer = await sharp(buffer)
+        .resize({ width: maxDimension, height: maxDimension, fit: 'inside', withoutEnlargement: true })
+        .toBuffer();
+
       const ext = extname(new URL(imgUrl).pathname).toLowerCase();
       let mimeType = 'image/jpeg';
       if (ext === '.png') mimeType = 'image/png';
@@ -140,14 +153,14 @@ async function embedImagesAsDataUris(html, baseUrl) {
       else if (ext === '.webp') mimeType = 'image/webp';
       else if (ext === '.svg') mimeType = 'image/svg+xml';
 
-      const base64 = buffer.toString('base64');
+      const base64 = resizedBuffer.toString('base64');
       img.setAttribute('src', `data:${mimeType};base64,${base64}`);
       img.removeAttribute('srcset'); // Remove srcset to force use of the data URI
     } catch (err) {
       console.warn(`Warning: Failed to embed image ${src}:`, err.message);
     }
   }
-  
+
   return dom.window.document.body.innerHTML;
 }
 
