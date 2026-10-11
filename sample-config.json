@@ -1,0 +1,19 @@
+{
+  "browse": false,
+  "embedImages": false,
+  "cssUrl": "https://raw.githubusercontent.com/oxalorg/sakura/1eab9fd871abc74ec74d1a6f18ee56148f5a4b8f/css/sakura.css",
+  "cssPath": "",
+  "smtp": {
+    "host": "smtp.example.com",
+    "port": 465,
+    "secure": true,
+    "auth": {
+      "user": "your-username",
+      "pass": "your-password"
+    }
+  },
+  "email": {
+    "from": "you@example.com",
+    "to": "destination@example.com"
+  }
+}
