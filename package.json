@@ -1,5 +1,5 @@
 {
-  "name": "readable-newsletter",
+  "name": "friday",
   "version": "1.0.0",
   "description": "Fetches, purifies, and formats articles into a readable HTML view",
   "type": "module",

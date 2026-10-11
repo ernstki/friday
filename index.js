@@ -2,7 +2,7 @@
 //
 // Assisted-by: aider 0.86.2 + gemini/gemini-3.1-pro-preview
 //
-import { join, extname } from 'node:path';
+import { join, extname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -18,8 +18,9 @@ import beautify from 'js-beautify';
 import nodemailer from 'nodemailer';
 import sharp from 'sharp';
 
-const CACHE_DIR = join(homedir(), '.cache', 'readable-newsletters');
-const CONFIG_FILE = join(homedir(), '.config', 'readable-newsletters.json');
+const CACHE_DIR = join(homedir(), '.cache', 'friday');
+const CONFIG_DIR = join(homedir(), '.config', 'friday');
+const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const CACHE_TIMEOUT = 604800000;  // 7 days
 const MAX_IMAGE_DIMENSION = 500;
 // https://oxal.org/projects/sakura
@@ -75,8 +76,18 @@ async function main() {
   if (cssSource.startsWith('http://') || cssSource.startsWith('https://')) {
     const cssBuffer = await getCachedFile(cssSource);
     css = cssBuffer.toString('utf-8');
-  } else {
+  } else if (isAbsolute(cssSource)) {
     css = await readFile(cssSource, 'utf-8');
+  } else {
+    try {
+      css = await readFile(join(CONFIG_DIR, cssSource), 'utf-8');
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        css = await readFile(join(process.cwd(), cssSource), 'utf-8');
+      } else {
+        throw err;
+      }
+    }
   }
 
   // 3. Wrap the purified content in a full HTML document with the CSS and CSP injected
@@ -109,7 +120,7 @@ async function main() {
     const mailOptions = {
       from: config.email.from,
       to: config.email.to,
-      subject: article.title || 'Readable Newsletter',
+      subject: article.title || 'Friday Newsletter',
       html: beautified
     };
 
