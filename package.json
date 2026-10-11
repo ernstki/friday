@@ -1,10 +1,17 @@
 {
+  "name": "readable-newsletter",
+  "version": "1.0.0",
+  "description": "Fetches, purifies, and formats articles into a readable HTML view",
   "type": "module",
-  "main": "index.js", 
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "dompurify": "^3.4.16",
     "js-beautify": "^2.0.3",
-    "jsdom": "^30.1.2"
+    "jsdom": "^30.1.2",
+    "nodemailer": "^10.1.0"
   }
 }
