@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "description": "Fetches, purifies, and formats articles into a readable HTML view",
   "type": "module",
-  "main": "index.js",
+  "main": "friday.js",
+  "bin": {
+    "friday": "./friday.js"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node friday.js"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

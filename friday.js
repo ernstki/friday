@@ -23,8 +23,6 @@ const CONFIG_DIR = join(homedir(), '.config', 'friday');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const CACHE_TIMEOUT = 604800000;  // 7 days
 const MAX_IMAGE_DIMENSION = 500;
-// https://oxal.org/projects/sakura
-//const DEFAULT_CSS = 'https://raw.githubusercontent.com/oxalorg/sakura/1eab9fd871abc74ec74d1a6f18ee56148f5a4b8f/css/sakura.css';
 const DEFAULT_CSS = 'style.css';
 
 async function main() {

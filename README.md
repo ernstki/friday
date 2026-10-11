@@ -23,16 +23,16 @@ cached locally.
 Run the script by passing a URL; for example:
 
 ```bash
-    node index.js https://static.nytimes.com/email-content/NE_sample.html
+    node friday.js https://static.nytimes.com/email-content/NE_sample.html
 ```
 
 Or, if `node` is in your [path][], this will work, too:
 
 ```bash
-./index.js https://static.nytimes.com/email-content/NE_sample.html
+./friday.js https://static.nytimes.com/email-content/NE_sample.html
 ```
-<!-- someday, bundle everything into 'index.js' and then:
-    If `node` is already in your [path][], just move `index.js` to `~/bin/friday`
+<!-- someday, bundle everything into 'friday.js' and then:
+    If `node` is already in your [path][], just move `friday.js` to `~/bin/friday`
     (or `~/.local/bin/friday` or whatever) and run it like any other program on
     your system.
 -->
@@ -47,7 +47,7 @@ Or, if `node` is in your [path][], this will work, too:
 
 ## Authors
 
-Gemini 3.5 Flash and Kevin Ernst
+Gemini 3.5 Flash and Kevin Ernst.
 
 ## License
 
