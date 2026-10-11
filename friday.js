@@ -26,6 +26,21 @@ const CACHE_TIMEOUT = 604800000;  // 7 days
 const MAX_IMAGE_DIMENSION = 500;
 const DEFAULT_CSS = 'style.css';
 
+function printHelp() {
+  console.log(`Usage: friday [options] <url>
+
+Clean up web newsletters with the Readability algorithm and email them to yourself.
+
+Options:
+  -b, --browse          Open the parsed article in your default browser.
+  -w, --wait            When using --browse, keep the local server running until a key is pressed.
+  -s, --send-email      Send the parsed article via email (requires SMTP config).
+                        (Aliases: --send, --email)
+  -e, --embed-images    Download and embed images directly into the HTML as base64 data URIs.
+                        (Alias: --embed)
+  -h, --help            Show this help message and exit.`);
+}
+
 async function main() {
   const config = await loadConfig();
 
@@ -38,9 +53,15 @@ async function main() {
       'embed-images': { type: 'boolean', short: 'e', default: config.embedImages || false },
       embed: { type: 'boolean', default: false },
       wait: { type: 'boolean', short: 'w', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true
   });
+
+  if (values.help) {
+    printHelp();
+    process.exit(0);
+  }
 
   const shouldSendEmail = values['send-email'] || values.send || values.email;
   const shouldEmbed = values['embed-images'] || values.embed;
@@ -48,6 +69,7 @@ async function main() {
   const url = positionals[0];
   if (!url) {
     console.error("ERROR: Expected (at least) a URL.");
+    console.error("Run 'friday --help' for usage information.");
     process.exit(1);
   }
 
