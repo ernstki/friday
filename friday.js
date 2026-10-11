@@ -7,8 +7,9 @@ import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, exec } from 'node:child_process';
 import { stat, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createServer } from 'node:http';
 
 import { Readability } from '@mozilla/readability';
 import jsdom from 'jsdom';
@@ -36,6 +37,7 @@ async function main() {
       email: { type: 'boolean', default: false },
       'embed-images': { type: 'boolean', short: 'e', default: config.embedImages || false },
       embed: { type: 'boolean', default: false },
+      wait: { type: 'boolean', short: 'w', default: false },
     },
     allowPositionals: true
   });
@@ -130,13 +132,55 @@ async function main() {
       process.exit(1);
     }
   } else if (values.browse) {
-    //const proc = spawn('bat', ["-l", "html"],
-    const proc = spawn('browser', ['--stay-open'],
-                       { stdio: ['pipe', 'inherit', 'inherit'] });
-    proc.stdin.end(beautified);
+    await openInBrowser(beautified, values.wait);
   } else {
     console.log(beautified);
   }
+}
+
+async function openInBrowser(htmlContent, wait = false) {
+  const server = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(htmlContent);
+
+    if (!wait) {
+      server.close();
+      process.exit(0);
+    }
+  });
+
+  server.listen(0, '127.0.0.1', () => {
+    const port = server.address().port;
+    const url = `http://127.0.0.1:${port}`;
+
+    let command;
+    switch (process.platform) {
+      case 'darwin': command = `open "${url}"`; break;
+      case 'win32':  command = `start "" "${url}"`; break;
+      default:       command = `xdg-open "${url}"`; break;
+    }
+
+    exec(command, (error) => {
+      if (error) {
+        console.error(`Failed to open browser: ${error.message}`);
+        server.close();
+        process.exit(1);
+      }
+    });
+
+    if (wait) {
+      console.log(`Serving on ${url}`);
+      console.log('Press any key to exit...');
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true);
+      }
+      process.stdin.resume();
+      process.stdin.once('data', () => {
+        server.close();
+        process.exit(0);
+      });
+    }
+  });
 }
 
 async function embedImagesAsDataUris(html, baseUrl, maxDimension) {

@@ -3,6 +3,9 @@
 Clean up web newsletters with the [Readbility algorithm][readability] and email
 them to yourself.
 
+Requires **Node.js ≥ 14**, because some dependencies use null-coalescing
+operators. Tested with Node.js 22.
+
 ## Initial Setup
 
 ```bash
@@ -40,10 +43,23 @@ Or, if `node` is in your [path][], this will work, too:
 ### Flags
 
 * `-b`, `--browse`: Open the parsed article in your default browser.
+* `-w`, `--wait`: When using `--browse`, keep the local server running until a key is pressed (useful for viewing source or refreshing).
 * `-s`, --send-email, `--send`, `--email`: Send the parsed article via email
   (requires SMTP config).
 * `-e`, `--embed-images`, `--embed`: Download and embed images directly into
    the HTML as base64 data URIs.
+
+## Security
+
+The resulting HTML newsletters are prevented from running JavaScript in two ways:
+
+1. **DOMPurify:** By default, `DOMPurify` automatically strips out all
+   `<script>` tags, `javascript:` URIs, and inline event handlers (like
+   `onclick="..."`).
+2. **Content-Security-Policy (CSP):** A strict CSP meta tag is injected into
+   the `<head>` of the generated HTML (`default-src 'none'`). Because there is
+   no `script-src` defined, the browser will strictly refuse to execute any
+   JavaScript, even if a script tag somehow bypassed the sanitizer.
 
 ## Authors
 
