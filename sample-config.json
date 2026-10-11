@@ -1,4 +1,12 @@
 {
+  "urls": [
+    "https://static.nytimes.com/email-content/NE_sample.html",
+    {
+      "url": "https://changelog.com/news",
+      "selector": "#newsletter_iframe",
+      "attribute": "src"
+    }
+  ],
   "browse": false,
   "embedImages": false,
   "maxImageDimension": 500,

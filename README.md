@@ -34,6 +34,24 @@ Or, if `node` is in your [path][], this will work, too:
 ```bash
 ./friday.js https://static.nytimes.com/email-content/NE_sample.html
 ```
+
+You can also specify a list of URLs in your `config.json` (using the `"urls"`
+array) to process them in batch if no URL is provided on the command line.
+
+For newsletters that don't have a stable URL (_e.g._, a "latest" page that
+embeds the actual newsletter), you can provide an object with a CSS selector to
+extract the real URL; for example:
+
+```json
+"urls": [
+  {
+    "url": "https://changelog.com/news",
+    "selector": "#newsletter_iframe",
+    "attribute": "src"
+  }
+]
+```
+
 <!-- someday, bundle everything into 'friday.js' and then:
     If `node` is already in your [path][], just move `friday.js` to `~/bin/friday`
     (or `~/.local/bin/friday` or whatever) and run it like any other program on

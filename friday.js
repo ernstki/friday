@@ -27,9 +27,10 @@ const MAX_IMAGE_DIMENSION = 500;
 const DEFAULT_CSS = 'style.css';
 
 function printHelp() {
-  console.log(`Usage: friday [options] <url>
+  console.log(`Usage: friday [options] [url...]
 
 Clean up web newsletters with the Readability algorithm and email them to yourself.
+If no URLs are provided on the command line, it will look for a "urls" array in config.json.
 
 Options:
   -b, --browse          Open the parsed article in your default browser.
@@ -63,24 +64,76 @@ async function main() {
     process.exit(0);
   }
 
-  const shouldSendEmail = values['send-email'] || values.send || values.email;
-  const shouldEmbed = values['embed-images'] || values.embed;
+  let urls = positionals;
+  if (urls.length === 0 && config.urls && Array.isArray(config.urls) && config.urls.length > 0) {
+    urls = config.urls;
+  }
 
-  const url = positionals[0];
-  if (!url) {
+  if (urls.length === 0) {
     console.error("ERROR: Expected (at least) a URL.");
     console.error("Run 'friday --help' for usage information.");
     process.exit(1);
   }
 
+  for (const item of urls) {
+    const targetUrl = await resolveTargetUrl(item);
+    if (targetUrl) {
+      await processArticle(targetUrl, config, values);
+    }
+  }
+}
+
+async function resolveTargetUrl(item) {
+  if (typeof item === 'string') {
+    return item;
+  }
+
+  if (typeof item === 'object' && item.url && item.selector) {
+    console.log(`Fetching wrapper page: ${item.url}`);
+    try {
+      const rawHtml = await getCachedFile(item.url);
+      const dom = new JSDOM(rawHtml, { url: item.url });
+      const element = dom.window.document.querySelector(item.selector);
+
+      if (element) {
+        const attr = item.attribute || (element.tagName === 'A' ? 'href' : 'src');
+        const extractedPath = element.getAttribute(attr);
+
+        if (extractedPath) {
+          const targetUrl = new URL(extractedPath, item.url).href;
+          console.log(`Extracted actual URL: ${targetUrl}`);
+          return targetUrl;
+        } else {
+          console.error(`ERROR: Attribute '${attr}' not found on element matching '${item.selector}'`);
+          return null;
+        }
+      } else {
+        console.error(`ERROR: Selector '${item.selector}' not found on ${item.url}`);
+        return null;
+      }
+    } catch (err) {
+      console.error(`ERROR processing wrapper ${item.url}:`, err.message);
+      return null;
+    }
+  }
+
+  console.error(`ERROR: Invalid URL item format: ${JSON.stringify(item)}`);
+  return null;
+}
+
+async function processArticle(url, config, values) {
+  const shouldSendEmail = values['send-email'] || values.send || values.email;
+  const shouldEmbed = values['embed-images'] || values.embed;
+
+  console.log(`Processing: ${url}`);
   const rawHtml = await getCachedFile(url);
   const dom = new JSDOM(rawHtml, { url });
   const { document } = dom.window;
   const article = new Readability(document).parse();
 
   if (!article?.content) {
-    console.error("ERROR: Article had no content after parsing.");
-    process.exit(1);
+    console.error(`ERROR: Article had no content after parsing: ${url}`);
+    return;
   }
 
   let content = article.content;
@@ -150,8 +203,7 @@ async function main() {
       const info = await transporter.sendMail(mailOptions);
       console.log('Email sent successfully: ' + info.response);
     } catch (error) {
-      console.error('Error sending email:', error);
-      process.exit(1);
+      console.error(`ERROR: Failed to send email (${error})`);
     }
   } else if (values.browse) {
     await openInBrowser(beautified, values.wait);
@@ -161,47 +213,53 @@ async function main() {
 }
 
 async function openInBrowser(htmlContent, wait = false) {
-  const server = createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(htmlContent);
+  return new Promise((resolve) => {
+    const server = createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(htmlContent);
 
-    if (!wait) {
-      server.close();
-      process.exit(0);
-    }
-  });
-
-  server.listen(0, '127.0.0.1', () => {
-    const port = server.address().port;
-    const url = `http://127.0.0.1:${port}`;
-
-    let command;
-    switch (process.platform) {
-      case 'darwin': command = `open "${url}"`; break;
-      case 'win32':  command = `start "" "${url}"`; break;
-      default:       command = `xdg-open "${url}"`; break;
-    }
-
-    exec(command, (error) => {
-      if (error) {
-        console.error(`Failed to open browser: ${error.message}`);
+      if (!wait) {
         server.close();
-        process.exit(1);
+        resolve();
       }
     });
 
-    if (wait) {
-      console.log(`Serving on ${url}`);
-      console.log('Press any key to exit...');
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(true);
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      const url = `http://127.0.0.1:${port}`;
+
+      let command;
+      switch (process.platform) {
+        case 'darwin': command = `open "${url}"`; break;
+        case 'win32':  command = `start "" "${url}"`; break;
+        default:       command = `xdg-open "${url}"`; break;
       }
-      process.stdin.resume();
-      process.stdin.once('data', () => {
-        server.close();
-        process.exit(0);
+
+      exec(command, (error) => {
+        if (error) {
+          console.error(`ERROR: Failed to open browser (${error.message})`);
+          server.close();
+          resolve();
+        }
       });
-    }
+
+      if (wait) {
+        console.log(`Serving on ${url}`);
+        console.log('Press any key to continue...');
+        if (process.stdin.isTTY) {
+          process.stdin.setRawMode(true);
+        }
+        process.stdin.resume();
+        process.stdin.once('data', () => {
+          server.close();
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+          }
+          process.stdin.pause();
+          resolve();
+        });
+      }
+    });
   });
 }
 
