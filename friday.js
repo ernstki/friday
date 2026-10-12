@@ -28,6 +28,7 @@ const CONFIG_DIR = join(homedir(), '.config', 'friday'); const CONFIG_FILE = joi
 const CACHE_TIMEOUT = 604800000;  // 7 days
 const MAX_IMAGE_DIMENSION = 500;
 const DEFAULT_CSS = 'style.css';
+const DISABLE_SVG = true;
 
 let isVerbose = false;
 
@@ -160,7 +161,8 @@ async function processArticle(url, config, values) {
   }
 
   const purify = DOMPurify(dom.window);
-  const purified = purify.sanitize(content);
+  const purifyOptions = DISABLE_SVG ? { FORBID_TAGS: ['svg'] } : {};
+  const purified = purify.sanitize(content, purifyOptions);
 
   let css;
   const cssSource = config.css || DEFAULT_CSS;
@@ -388,6 +390,9 @@ async function embedImagesAsDataUris(html, baseUrl, maxDimension) {
         .toBuffer();
 
       const ext = extname(new URL(imgUrl).pathname).toLowerCase();
+      
+      if (DISABLE_SVG && ext === '.svg') continue;
+
       let mimeType = 'image/jpeg';
       if (ext === '.png') mimeType = 'image/png';
       else if (ext === '.gif') mimeType = 'image/gif';

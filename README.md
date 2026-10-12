@@ -149,6 +149,9 @@ in two ways:
    `script-src` defined, the browser will strictly refuse to execute any
    JavaScript, even if a script tag somehow bypassed the sanitizer.
 
+SVG content is temporarily disabled (gated with the `DISABLE_SVG` global
+constant in `friday.js`) until I get a newer Node.js on my hosting provider.
+
 ## Authors
 
 Gemini 3.5 Flash, with a human directing every commit and cleaning up its bad
