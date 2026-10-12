@@ -1,3 +1,4 @@
 .*sw?
 .aider*
 node_modules
+*.log

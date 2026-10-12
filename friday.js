@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 //
-// Assisted-by: aider 0.86.2 + gemini/gemini-3.1-pro-preview
+//  friday.js - email cleaned web newsletters to yourself
+//
+//  Homepage:     https://github.com/ernstki/friday
+//  License:      WTFPL Version 2 (or later)
+//  Assisted-by:  aider 0.86.2 + gemini/gemini-3.1-pro-preview
 //
 import { join, extname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
@@ -25,6 +29,41 @@ const CACHE_TIMEOUT = 604800000;  // 7 days
 const MAX_IMAGE_DIMENSION = 500;
 const DEFAULT_CSS = 'style.css';
 
+let isVerbose = false;
+
+function logStatus(msg) {
+  if (!process.stdout.isTTY) {
+    console.log(`[${new Date().toISOString()}] ${msg}`);
+  } else {
+    console.log(msg);
+  }
+}
+
+function logInfo(msg) {
+  if (!isVerbose) return;
+  if (!process.stdout.isTTY) {
+    console.info(`[${new Date().toISOString()}] INFO: ${msg}`);
+  } else {
+    console.info(`INFO: ${msg}`);
+  }
+}
+
+function logError(msg) {
+  if (!process.stderr.isTTY) {
+    console.error(`[${new Date().toISOString()}] ERROR: ${msg}`);
+  } else {
+    console.error(`ERROR: ${msg}`);
+  }
+}
+
+function logWarning(msg) {
+  if (!process.stderr.isTTY) {
+    console.warn(`[${new Date().toISOString()}] WARNING: ${msg}`);
+  } else {
+    console.warn(`WARNING: ${msg}`);
+  }
+}
+
 function printHelp() {
   console.log(`Usage: friday [options] [URL...]
 
@@ -46,57 +85,13 @@ Options:
   -v, --verbose       Enable verbose logging (e.g., show cleaned URLs)`);
 }
 
-async function main() {
-  const config = await loadConfig();
-
-  const { values, positionals } = parseArgs({
-    options: {
-      browse: { type: 'boolean', short: 'b', default: config.browse || false },
-      'send-email': { type: 'boolean', short: 's', default: false },
-      send: { type: 'boolean', default: false },
-      email: { type: 'boolean', default: false },
-      'embed-images': { type: 'boolean', short: 'e', default: config.embedImages || false },
-      embed: { type: 'boolean', default: false },
-      'clean-urls': { type: 'boolean', short: 'c', default: config.cleanUrls || false },
-      clean: { type: 'boolean', default: false },
-      verbose: { type: 'boolean', short: 'v', default: config.verbose || false },
-      wait: { type: 'boolean', short: 'w', default: false },
-      help: { type: 'boolean', short: 'h', default: false },
-    },
-    allowPositionals: true
-  });
-
-  if (values.help) {
-    printHelp();
-    process.exit(0);
-  }
-
-  let urls = positionals;
-  if (urls.length === 0 && config.urls && Array.isArray(config.urls) && config.urls.length > 0) {
-    urls = config.urls;
-  }
-
-  if (urls.length === 0) {
-    console.error("ERROR: Expected (at least) a URL.");
-    console.error("Run 'friday --help' for usage information.");
-    process.exit(1);
-  }
-
-  for (const item of urls) {
-    const targetUrl = await resolveTargetUrl(item);
-    if (targetUrl) {
-      await processArticle(targetUrl, config, values);
-    }
-  }
-}
-
 async function resolveTargetUrl(item) {
   if (typeof item === 'string') {
     return item;
   }
 
   if (typeof item === 'object' && item.url && item.selector) {
-    console.log(`Fetching wrapper page: ${item.url}`);
+    logStatus(`Fetching wrapper page: ${item.url}`);
     try {
       const rawHtml = await getCachedFile(item.url);
       const dom = new JSDOM(rawHtml, { url: item.url });
@@ -108,23 +103,23 @@ async function resolveTargetUrl(item) {
 
         if (extractedPath) {
           const targetUrl = new URL(extractedPath, item.url).href;
-          console.log(`Extracted actual URL: ${targetUrl}`);
+          logStatus(`Extracted actual URL: ${targetUrl}`);
           return targetUrl;
         } else {
-          console.error(`ERROR: Attribute '${attr}' not found on element matching '${item.selector}'`);
+          logError(`Attribute '${attr}' not found on element matching '${item.selector}'`);
           return null;
         }
       } else {
-        console.error(`ERROR: Selector '${item.selector}' not found on ${item.url}`);
+        logError(`Selector '${item.selector}' not found on ${item.url}`);
         return null;
       }
     } catch (err) {
-      console.error(`ERROR processing wrapper ${item.url}:`, err.message);
+      logError(`Processing wrapper ${item.url}: ${err.message}`);
       return null;
     }
   }
 
-  console.error(`ERROR: Invalid URL item format: ${JSON.stringify(item)}`);
+  logError(`Invalid URL item format: ${JSON.stringify(item)}`);
   return null;
 }
 
@@ -133,27 +128,27 @@ async function processArticle(url, config, values) {
   const shouldEmbed = values['embed-images'] || values.embed;
   const shouldClean = values['clean-urls'] || values.clean;
 
-  console.log(`Processing: ${url}`);
+  logStatus(`Processing: ${url}`);
 
   let rawHtml;
   try {
     rawHtml = await getCachedFile(url);
   } catch (err) {
-    console.error(`ERROR: Failed to fetch article after retries: ${url} (${err.message})`);
+    logError(`Failed to fetch article after retries: ${url} (${err.message})`);
     return;
   }
 
   const dom = new JSDOM(rawHtml, { url });
 
   if (shouldClean) {
-    await cleanUrls(dom, values.verbose);
+    await cleanUrls(dom);
   }
 
   const { document } = dom.window;
   const article = new Readability(document).parse();
 
   if (!article?.content) {
-    console.error(`ERROR: Article had no content after parsing: ${url}`);
+    logError(`Article had no content after parsing: ${url}`);
     return;
   }
 
@@ -174,7 +169,7 @@ async function processArticle(url, config, values) {
       const cssBuffer = await getCachedFile(cssSource);
       css = cssBuffer.toString('utf-8');
     } catch (err) {
-      console.warn(`Warning: Failed to fetch CSS from ${cssSource}, falling back to empty styles.`);
+      logWarning(`Failed to fetch CSS from ${cssSource}, falling back to empty styles.`);
       css = '';
     }
   } else if (isAbsolute(cssSource)) {
@@ -213,7 +208,7 @@ async function processArticle(url, config, values) {
 
   if (shouldSendEmail) {
     if (!config.smtp || !config.email || !config.email.to || !config.email.from) {
-      console.error("ERROR: Missing 'smtp' or 'email' configuration in config file.");
+      logError("Missing 'smtp' or 'email' configuration in config file.");
       process.exit(1);
     }
 
@@ -227,9 +222,9 @@ async function processArticle(url, config, values) {
 
     try {
       const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent successfully: ' + info.response);
+      logStatus(`Email sent successfully: "${article.title || url}" to ${obfuscateEmail(config.email.to)} (${info.response})`);
     } catch (error) {
-      console.error(`ERROR: Failed to send email (${error})`);
+      logError(`Failed to send email for "${url}" (${error.message})`);
     }
   } else if (values.browse) {
     await openInBrowser(beautified, values.wait);
@@ -238,14 +233,23 @@ async function processArticle(url, config, values) {
   }
 }
 
-async function cleanUrls(dom, verbose) {
+function obfuscateEmail(email) {
+  if (!email || !email.includes('@')) return email;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) return `${local[0]}***@${domain}`;
+  const first = local.slice(0, 2);
+  const last = local.slice(-2);
+  return `${first}***${last}@${domain}`;
+}
+
+async function cleanUrls(dom) {
   const rulesUrl = 'https://rules1.clearurls.xyz/data.minify.json';
   let rulesData;
   try {
     const buffer = await getCachedFile(rulesUrl);
     rulesData = JSON.parse(buffer.toString('utf-8'));
   } catch (err) {
-    console.warn('Warning: Failed to load ClearURLs rules:', err.message);
+    logWarning(`Failed to load ClearURLs rules: ${err.message}`);
     return;
   }
 
@@ -301,9 +305,7 @@ async function cleanUrls(dom, verbose) {
 
       if (changed) {
         el.setAttribute(attr, url.href);
-        if (verbose) {
-          console.info(`Cleaned URL: ${originalUrl} -> ${url.href}`);
-        }
+        logInfo(`Cleaned URL: ${originalUrl} -> ${url.href}`);
       }
     } catch (e) { /* ignore invalid URLs */ }
   }
@@ -334,7 +336,7 @@ async function openInBrowser(htmlContent, wait = false) {
 
       exec(command, (error) => {
         if (error) {
-          console.error(`ERROR: Failed to open browser (${error.message})`);
+          logError(`Failed to open browser (${error.message})`);
           server.close();
           resolve();
         }
@@ -387,7 +389,7 @@ async function embedImagesAsDataUris(html, baseUrl, maxDimension) {
       img.setAttribute('src', `data:${mimeType};base64,${base64}`);
       img.removeAttribute('srcset'); // Remove srcset to force use of the data URI
     } catch (err) {
-      console.warn(`Warning: Failed to embed image ${src}:`, err.message);
+      logWarning(`Failed to embed image ${src}: ${err.message}`);
     }
   }
 
@@ -402,7 +404,7 @@ async function loadConfig() {
     if (err.code === 'ENOENT') {
       return {};
     }
-    console.warn(`Failed to read config file at ${CONFIG_FILE}:`, err.message);
+    logWarning(`Failed to read config file at ${CONFIG_FILE}: ${err.message}`);
     return {};
   }
 }
@@ -435,7 +437,7 @@ async function getCachedFile(url, ttlMs = CACHE_TIMEOUT) {
         throw err; // Max retries reached, throw the error
       }
       const delay = 1000 * (2 ** attempt); // 1s, 2s, 4s
-      console.warn(`Warning: Fetch failed for ${url} (${err.message}). Retrying in ${delay / 1000}s...`);
+      logWarning(`Fetch failed for ${url} (${err.message}). Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -444,6 +446,51 @@ async function getCachedFile(url, ttlMs = CACHE_TIMEOUT) {
   await mkdir(CACHE_DIR, { recursive: true });
   await writeFile(filePath, buffer);
   return buffer;
+}
+
+async function main() {
+  const config = await loadConfig();
+
+  const { values, positionals } = parseArgs({
+    options: {
+      browse: { type: 'boolean', short: 'b', default: config.browse || false },
+      'send-email': { type: 'boolean', short: 's', default: false },
+      send: { type: 'boolean', default: false },
+      email: { type: 'boolean', default: false },
+      'embed-images': { type: 'boolean', short: 'e', default: config.embedImages || false },
+      embed: { type: 'boolean', default: false },
+      'clean-urls': { type: 'boolean', short: 'c', default: config.cleanUrls || false },
+      clean: { type: 'boolean', default: false },
+      verbose: { type: 'boolean', short: 'v', default: config.verbose || false },
+      wait: { type: 'boolean', short: 'w', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
+    },
+    allowPositionals: true
+  });
+
+  if (values.help) {
+    printHelp();
+    process.exit(0);
+  }
+
+  isVerbose = values.verbose;
+
+  let urls = positionals;
+  if (urls.length === 0 && config.urls && Array.isArray(config.urls) && config.urls.length > 0) {
+    urls = config.urls;
+  }
+
+  if (urls.length === 0) {
+    logError("Expected (at least) a URL.\nRun 'friday --help' for usage information.");
+    process.exit(1);
+  }
+
+  for (const item of urls) {
+    const targetUrl = await resolveTargetUrl(item);
+    if (targetUrl) {
+      await processArticle(targetUrl, config, values);
+    }
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
