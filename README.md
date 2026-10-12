@@ -1,7 +1,9 @@
 # Friday
 
-Clean up web newsletters with the [Readbility algorithm][readability] and email
-them to yourself.
+Clean up web newsletters with the [Readbility algorithm][readability] and
+[ClearURLs][clearurls]' tracker cleaning ruleset and email them to yourself.
+
+On Friday. If you want.
 
 Requires **Node.js ≥ 14**, because some dependencies use null-coalescing
 operators. Tested with Node.js 22.
@@ -35,21 +37,25 @@ Or, if `node` is in your [path][], this will work, too:
 ./friday.js https://static.nytimes.com/email-content/NE_sample.html
 ```
 
-You can also specify a list of URLs in your `config.json` (using the `"urls"`
-array) to process them in batch if no URL is provided on the command line.
+Alternatively, you can specify a list of URLs to process using in the `"urls"`
+array of your `config.json`. For newsletters that don't have a stable URL, you can
+provide a CSS selector and optional attribute (defaulting to `href` for anchors
+or `src` for anything else) to extract the _actual_ URL.
 
-For newsletters that don't have a stable URL (_e.g._, a "latest" page that
-embeds the actual newsletter), you can provide an object with a CSS selector to
-extract the real URL; for example:
+For example:
 
 ```json
-"urls": [
-  {
-    "url": "https://changelog.com/news",
-    "selector": "#newsletter_iframe",
-    "attribute": "src"
-  }
-]
+{
+  "urls": [
+    "https://static.nytimes.com/email-content/NE_sample.html",
+    {
+      "url": "https://changelog.com/news",
+      "selector": "#newsletter_iframe",
+      "attribute": "src"
+    }
+  ],
+  "and-so-on": "…"
+}
 ```
 
 <!-- someday, bundle everything into 'friday.js' and then:
@@ -62,12 +68,25 @@ extract the real URL; for example:
 
 * `-b`, `--browse`: Open the parsed article in your default browser.
 * `-w`, `--wait`: When using `--browse`, keep the local server running until a key is pressed (useful for viewing source or refreshing).
-* `-s`, --send-email, `--send`, `--email`: Send the parsed article via email
+* `-s`, `--send-email`, `--send`, `--email`: Send the parsed article via email
   (requires SMTP config).
 * `-e`, `--embed-images`, `--embed`: Download and embed images directly into
    the HTML as base64 data URIs.
 * `-c`, `--clean-urls`: Remove tracking parameters from URLs using ClearURLs rules.
 * `-v`, `--verbose`: Enable verbose logging (e.g., show cleaned URLs).
+
+### Automation (Cron)
+
+You can automate Friday to run on a schedule using `cron`. For example, to run the script every Friday at 8:00 AM and process the URLs defined in your `config.json`:
+
+```cron
+0 8 * * 5 /usr/local/bin/node /path/to/friday.js --send-email
+```
+
+> [!NOTE]
+> Make sure to provide the **absolute paths** to both the `node` executable and
+> `friday.js` in your crontab, since the default cron environment has a
+> restricted `$PATH`.
 
 ## Security
 
@@ -90,6 +109,7 @@ Gemini 3.5 Flash and Kevin Ernst.
 [WTFPL](https://www.wtfpl.net/about) Version 2 or any later version.
 
 [readability]: https://github.com/mozilla/readability
+[clearurls]: https://gitlab.com/ClearURLs/ClearUrls
 [this one]: https://raw.githubusercontent.com/oxalorg/sakura/master/css/sakura.css
 [sakura]: https://oxal.org/projects/sakura
 [path]: https://en.wikipedia.org/wiki/PATH_(variable)
