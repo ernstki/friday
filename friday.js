@@ -6,7 +6,7 @@
 //  License:      WTFPL Version 2 (or later)
 //  Assisted-by:  aider 0.86.2 + gemini/gemini-3.1-pro-preview
 //
-import { join, extname, isAbsolute } from 'node:path';
+import { join, extname, isAbsolute, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -179,7 +179,16 @@ async function processArticle(url, config, values) {
       css = await readFile(join(CONFIG_DIR, cssSource), 'utf-8');
     } catch (err) {
       if (err.code === 'ENOENT') {
-        css = await readFile(join(process.cwd(), cssSource), 'utf-8');
+        try {
+          css = await readFile(join(process.cwd(), cssSource), 'utf-8');
+        } catch (err2) {
+          if (err2.code === 'ENOENT') {
+            const scriptDir = dirname(fileURLToPath(import.meta.url));
+            css = await readFile(join(scriptDir, cssSource), 'utf-8');
+          } else {
+            throw err2;
+          }
+        }
       } else {
         throw err;
       }

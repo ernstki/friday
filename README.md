@@ -17,23 +17,27 @@ operators. Tested with Node.js 22.
 
 ## Initial setup
 
+Copy the [sample config](sample-config.json), to `~/.config/friday`, then edit
+it with your favorite editor to customize it and/or add SMTP authentication
+credentials:
+
 ```bash
 mkdir -p ~/.config/friday
 cp sample-config.json ~/.config/friday/config.json
+chmod 600 ~/.config/friday/config.json
+$EDITOR ~/.config/friday/config.json
 ```
 
-Now, edit `config.json` in your favorite editor to customize it and/or add SMTP
-authentication credentials.
-
 > [!IMPORTANT]
-> Protect this file with `chmod 600 ~/.config/friday/config.json` if it will
-> contain credentials, and if you can, use an application specific password
-> scoped as narrowly as possible (_e.g._, just for SMTP).
+> Be sure to protect this file with `chmod 600 ~/.config/friday/config.json` if
+> it will contain credentials, and if you can, use an application specific
+> password scoped as narrowly as possible (_e.g._, just for SMTP).
 
 If a `~/.config/friday/style.css` is found, that will be used, with a fallback
-to `style.css` in the current working directory. You can also specify a URL to
-a CSS file, _e.g._ [this one][] for [Sakura][], which will be downloaded and
-cached locally.
+to `style.css` in the current working directory, and finally, `style.css` in
+the same directory as the script itself. You can also specify a URL to a CSS
+file, _e.g._ [this one][] for [Sakura][], which will be downloaded and cached
+locally.
 
 See the "[Automation using cron](#automation-using-cron)" section if you're
 interested in non-interactive use, like on a home system or shared host.
