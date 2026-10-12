@@ -4,11 +4,13 @@ Clean up web newsletters with the [Readbility algorithm][readability] and
 [ClearURLs][clearurls]' tracker cleaning ruleset and email them to yourself. On
 Friday. If you want.
 
-Born out of frustration with email newsletters that have show-offy formatting
-and Urchin-style outbound link tracking. Outbound links that go through a
-click-tracking proxy are on the to-do list, so that you could actually _see_
-what you're clicking on again, like TBL intended, and forward such emails
-without compromising your personal contacts through newsletter share IDs.
+Born out of frustration with daily email newsletters that I don't _want_ daily,
+but have no control over their actual frequency.
+
+Outbound links that go through a click-tracking proxy are on the to-do list, so
+that you could actually _see_ what you're clicking on again, like TBL intended,
+and forward such emails without compromising your personal contacts through
+newsletter share IDs.
 
 Requires **Node.js ≥ 14**, because some dependencies use null-coalescing
 operators. Tested with Node.js 22.
@@ -79,15 +81,16 @@ For example:
 
 ### Flags
 
-* `-b`, `--browse`: Open the parsed article in your default browser.
-* `-w`, `--wait`: When using `--browse`, keep the local server running until a
-  key is pressed (useful for viewing source or refreshing).
-* `-s`, `--send-email`, `--send`, `--email`: Send the parsed article via email
-  (requires SMTP config).
-* `-e`, `--embed-images`, `--embed`: Download and embed images directly into
-   the HTML as base64 data URIs.
-* `-c`, `--clean-urls`: Remove tracking parameters from URLs using ClearURLs rules.
-* `-v`, `--verbose`: Enable verbose logging (e.g., show cleaned URLs).
+* `-b`, `--browse` — opens the parsed article in your default browser
+* `-w`, `--wait` — used with `--browse`, keeps the local server running until a
+  key is pressed; useful for viewing source or refreshing
+* `-s`, `--send-email`, `--send`, `--email` — sends the parsed article via email;
+  requires `"smtp"` key in `config.json`
+* `-e`, `--embed-images`, `--embed` — downloads and embeds images directly into
+   the HTML as `data:` URIs
+* `-c`, `--clean-urls` — removes tracking parameters from URLs using ClearURLs
+  rules
+* `-v`, `--verbose` — enables verbose logging (e.g., show cleaned URLs)
 
 ### Automation using cron
 
@@ -144,7 +147,8 @@ in two ways:
 
 ## Authors
 
-Gemini 3.5 Flash and Kevin Ernst.
+Gemini 3.5 Flash, with a human directing every commit and cleaning up its bad
+writing.
 
 ## License
 
