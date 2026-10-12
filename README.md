@@ -66,6 +66,8 @@ extract the real URL; for example:
   (requires SMTP config).
 * `-e`, `--embed-images`, `--embed`: Download and embed images directly into
    the HTML as base64 data URIs.
+* `-c`, `--clean-urls`: Remove tracking parameters from URLs using ClearURLs rules.
+* `-v`, `--verbose`: Enable verbose logging (e.g., show cleaned URLs).
 
 ## Security
 

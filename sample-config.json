@@ -9,6 +9,8 @@
   ],
   "browse": false,
   "embedImages": false,
+  "cleanUrls": false,
+  "verbose": false,
   "maxImageDimension": 500,
   "css": "https://raw.githubusercontent.com/oxalorg/sakura/1eab9fd871abc74ec74d1a6f18ee56148f5a4b8f/css/sakura.css",
   "smtp": {

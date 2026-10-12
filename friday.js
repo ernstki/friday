@@ -20,26 +20,30 @@ import nodemailer from 'nodemailer';
 import sharp from 'sharp';
 
 const CACHE_DIR = join(homedir(), '.cache', 'friday');
-const CONFIG_DIR = join(homedir(), '.config', 'friday');
-const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+const CONFIG_DIR = join(homedir(), '.config', 'friday'); const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const CACHE_TIMEOUT = 604800000;  // 7 days
 const MAX_IMAGE_DIMENSION = 500;
 const DEFAULT_CSS = 'style.css';
 
 function printHelp() {
-  console.log(`Usage: friday [options] [url...]
+  console.log(`Usage: friday [options] [URL...]
 
-Clean up web newsletters with the Readability algorithm and email them to yourself.
-If no URLs are provided on the command line, it will look for a "urls" array in config.json.
+Clean up web newsletters with the Readability algorithm and email them to
+yourself.
 
 Options:
-  -b, --browse          Open the parsed article in your default browser.
-  -w, --wait            When using --browse, keep the local server running until a key is pressed.
-  -s, --send-email      Send the parsed article via email (requires SMTP config).
-                        (Aliases: --send, --email)
-  -e, --embed-images    Download and embed images directly into the HTML as base64 data URIs.
-                        (Alias: --embed)
-  -h, --help            Show this help message and exit.`);
+  URL...              One or more URLs, if not specified in 'config.json'
+  -h, --help          Show this help message and exit
+  -b, --browse        Open the parsed article in your default browser
+  -w, --wait          When using --browse, keep the local server running
+                      until a key is pressed
+  -s, --send-email    Send the parsed article via email; requires SMTP
+                      config (aliases: --send, --email)
+  -e, --embed-images  Download and embed images directly into the HTML as
+                      base64 data URIs (alias: --embed)
+  -c, --clean-urls    Remove tracking parameters from URLs using ClearURLs
+                      rules (alias: --clean)
+  -v, --verbose       Enable verbose logging (e.g., show cleaned URLs)`);
 }
 
 async function main() {
@@ -53,6 +57,9 @@ async function main() {
       email: { type: 'boolean', default: false },
       'embed-images': { type: 'boolean', short: 'e', default: config.embedImages || false },
       embed: { type: 'boolean', default: false },
+      'clean-urls': { type: 'boolean', short: 'c', default: config.cleanUrls || false },
+      clean: { type: 'boolean', default: false },
+      verbose: { type: 'boolean', short: 'v', default: config.verbose || false },
       wait: { type: 'boolean', short: 'w', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
@@ -124,10 +131,24 @@ async function resolveTargetUrl(item) {
 async function processArticle(url, config, values) {
   const shouldSendEmail = values['send-email'] || values.send || values.email;
   const shouldEmbed = values['embed-images'] || values.embed;
+  const shouldClean = values['clean-urls'] || values.clean;
 
   console.log(`Processing: ${url}`);
-  const rawHtml = await getCachedFile(url);
+
+  let rawHtml;
+  try {
+    rawHtml = await getCachedFile(url);
+  } catch (err) {
+    console.error(`ERROR: Failed to fetch article after retries: ${url} (${err.message})`);
+    return;
+  }
+
   const dom = new JSDOM(rawHtml, { url });
+
+  if (shouldClean) {
+    await cleanUrls(dom, values.verbose);
+  }
+
   const { document } = dom.window;
   const article = new Readability(document).parse();
 
@@ -149,8 +170,13 @@ async function processArticle(url, config, values) {
   let css;
   const cssSource = config.css || DEFAULT_CSS;
   if (cssSource.startsWith('http://') || cssSource.startsWith('https://')) {
-    const cssBuffer = await getCachedFile(cssSource);
-    css = cssBuffer.toString('utf-8');
+    try {
+      const cssBuffer = await getCachedFile(cssSource);
+      css = cssBuffer.toString('utf-8');
+    } catch (err) {
+      console.warn(`Warning: Failed to fetch CSS from ${cssSource}, falling back to empty styles.`);
+      css = '';
+    }
   } else if (isAbsolute(cssSource)) {
     css = await readFile(cssSource, 'utf-8');
   } else {
@@ -209,6 +235,77 @@ async function processArticle(url, config, values) {
     await openInBrowser(beautified, values.wait);
   } else {
     console.log(beautified);
+  }
+}
+
+async function cleanUrls(dom, verbose) {
+  const rulesUrl = 'https://rules1.clearurls.xyz/data.minify.json';
+  let rulesData;
+  try {
+    const buffer = await getCachedFile(rulesUrl);
+    rulesData = JSON.parse(buffer.toString('utf-8'));
+  } catch (err) {
+    console.warn('Warning: Failed to load ClearURLs rules:', err.message);
+    return;
+  }
+
+  const elements = dom.window.document.querySelectorAll('a[href], img[src], iframe[src]');
+  for (const el of elements) {
+    const attr = el.hasAttribute('href') ? 'href' : 'src';
+    let urlString = el.getAttribute(attr);
+    if (!urlString || urlString.startsWith('data:') || urlString.startsWith('#')) continue;
+
+    try {
+      let url = new URL(urlString, dom.window.location.href);
+      let urlStr = url.href;
+      const originalUrl = urlStr;
+      let changed = false;
+
+      for (const provider of Object.values(rulesData.providers)) {
+        if (!new RegExp(provider.urlPattern, 'i').test(urlStr)) continue;
+
+        const isException = (provider.exceptions || []).some(exc => new RegExp(exc, 'i').test(urlStr));
+        if (isException) continue;
+
+        for (const red of (provider.redirections || [])) {
+          const match = urlStr.match(new RegExp(red, 'i'));
+          if (match && match[1]) {
+            urlStr = decodeURIComponent(match[1]);
+            url = new URL(urlStr);
+            changed = true;
+          }
+        }
+
+        if (provider.rules && provider.rules.length > 0) {
+          const params = Array.from(url.searchParams.keys());
+          for (const param of params) {
+            if (provider.rules.some(rule => new RegExp(`^${rule}$`, 'i').test(param))) {
+              url.searchParams.delete(param);
+              changed = true;
+            }
+          }
+        }
+
+        for (const rawRule of (provider.rawRules || [])) {
+          const newHref = url.href.replace(new RegExp(rawRule, 'ig'), '');
+          if (newHref !== url.href) {
+            url = new URL(newHref);
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          urlStr = url.href;
+        }
+      }
+
+      if (changed) {
+        el.setAttribute(attr, url.href);
+        if (verbose) {
+          console.info(`Cleaned URL: ${originalUrl} -> ${url.href}`);
+        }
+      }
+    } catch (e) { /* ignore invalid URLs */ }
   }
 }
 
@@ -323,7 +420,26 @@ async function getCachedFile(url, ttlMs = CACHE_TIMEOUT) {
     }
   } catch {}
 
-  const res = await fetch(url);
+  let res;
+  const maxRetries = 3;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      break; // Success, exit the retry loop
+    } catch (err) {
+      if (attempt === maxRetries) {
+        throw err; // Max retries reached, throw the error
+      }
+      const delay = 1000 * (2 ** attempt); // 1s, 2s, 4s
+      console.warn(`Warning: Fetch failed for ${url} (${err.message}). Retrying in ${delay / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
   const buffer = Buffer.from(await res.arrayBuffer());
   await mkdir(CACHE_DIR, { recursive: true });
   await writeFile(filePath, buffer);
