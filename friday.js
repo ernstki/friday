@@ -23,6 +23,9 @@ import beautify from 'js-beautify';
 import nodemailer from 'nodemailer';
 import sharp from 'sharp';
 
+sharp.block({ operation: ["VipsForeignLoadHeif"] });
+sharp.block({ operation: ["VipsForeignLoadNsgif", "VipsForeignLoadTiff", "VipsForeignLoadVips"] });
+
 const CACHE_DIR = join(homedir(), '.cache', 'friday');
 const CONFIG_DIR = join(homedir(), '.config', 'friday'); const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const CACHE_TIMEOUT = 604800000;  // 7 days
