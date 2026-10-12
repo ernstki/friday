@@ -13,7 +13,7 @@ and forward such emails without compromising your personal contacts through
 newsletter share IDs.
 
 Requires **Node.js ≥ 14**, because some dependencies use null-coalescing
-operators. Tested with Node.js 22.
+operators. Tested with Node.js 18 and 22.
 
 ## Initial setup
 
