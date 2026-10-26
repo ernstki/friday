@@ -28,7 +28,7 @@ sharp.block({ operation: ["VipsForeignLoadNsgif", "VipsForeignLoadTiff", "VipsFo
 
 const CACHE_DIR = join(homedir(), '.cache', 'friday');
 const CONFIG_DIR = join(homedir(), '.config', 'friday'); const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
-const CACHE_TIMEOUT = 604800000;  // 7 days
+const CACHE_TIMEOUT = 86400000;  // 1 day
 const MAX_IMAGE_DIMENSION = 500;
 const DEFAULT_CSS = 'style.css';
 const DISABLE_SVG = true;
