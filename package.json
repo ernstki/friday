@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "js-beautify": "^2.0.3",
     "jsdom": "^21",
     "nodemailer": "^10.1.0",
